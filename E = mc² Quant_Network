@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>E = mc² Quant_Network — by Jacek Łaszewski ATARI</title>
+<style>
+    body {
+        margin: 0;
+        padding: 20px;
+        background: #000;
+        color: #0f0;
+        font-family: monospace;
+        font-size: 16px;
+        display: flex;
+        flex-direction: row;
+        gap: 20px;
+        box-sizing: border-box;
+    }
+    #left { flex: 0 0 60%; }
+    #right { flex: 0 0 40%; border-left: 1px solid #033; padding-left: 20px; }
+    .section { margin-bottom: 16px; }
+    .label { color: #888; margin-right: 6px; }
+    #barcode {
+        font-size: 20px;
+        letter-spacing: 1px;
+        white-space: pre;
+        margin-bottom: 16px;
+        text-shadow: 0 0 8px #0f0;
+    }
+    #alert {
+        color: #f00;
+        font-weight: bold;
+        text-shadow: 0 0 10px #f00;
+    }
+    #thoughts-box {
+        margin-top: 20px;
+        border: 1px solid #033;
+        padding: 10px;
+        background: #020505;
+        height: 150px;
+        overflow-y: auto;
+        font-size: 14px;
+    }
+    #log {
+        height: calc(100vh - 40px);
+        overflow-y: auto;
+        border: 1px solid #033;
+        padding: 8px;
+        font-size: 14px;
+        background: #020505;
+    }
+    .log-entry { margin-bottom: 4px; white-space: pre; }
+    .log-time { color: #0aa; margin-right: 4px; }
+    .log-tag { color: #fa0; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<div id="left">
+
+    <div class="section">
+        <div class="label">E = mc² Quant_Network — by Jacek Łaszewski:</div>
+        <div id="barcode"></div>
+    </div>
+
+    <div class="section">
+        <span class="label">LOCAL TIME:</span>
+        <span id="timeval"></span>
+    </div>
+
+    <div class="section">
+        <span class="label">YOUR NAME:</span>
+        <span id="username">REQUESTING…</span>
+    </div>
+
+    <div class="section">
+        <span class="label">YOUR IP:</span>
+        <span id="ipval">REQUESTING…</span>
+    </div>
+
+    <div class="section">
+        <span class="label">YOUR LOCATION:</span>
+        <span id="locval">REQUESTING…</span>
+    </div>
+
+    <div class="section">
+        <span class="label">SYSTEM STATUS:</span>
+        <span id="alert">ACTIVE — Quant_Network ONLINE</span>
+    </div>
+
+    <div class="section">
+        <span class="label">DETECTOR:</span>
+        <span id="detector-val">INITIALIZING…</span>
+    </div>
+
+    <div class="section">
+        <span class="label">TRUTH CHECK:</span>
+        <span id="truth-val">IDLE</span>
+    </div>
+
+    <div class="section">
+        <span class="label">SYSTEM THOUGHTS:</span>
+        <div id="thoughts-box"></div>
+    </div>
+
+</div>
+
+<div id="right">
+    <div class="label">EVENT LOG (tail -r):</div>
+    <div id="log"></div>
+</div>
+
+<script>
+// ---------------- LOG ----------------
+const logEl = document.getElementById('log');
+
+function nowShort() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}.${String(d.getMilliseconds()).padStart(3,"0")}`;
+}
+
+function logEvent(tag, msg) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML =
+        `<span class="log-time">${nowShort()}</span>` +
+        `<span class="log-tag">[${tag}]</span>` +
+        `<span>${msg}</span>`;
+    logEl.insertBefore(div, logEl.firstChild);
+}
+
+// ---------------- QUANT NETWORK BARCODE ----------------
+const BAR_LEN = 72;
+const barcodeEl = document.getElementById('barcode');
+
+const quantSymbols = [
+    "█","▓","▒","░",
+    "│","┃","║","╫","╬",
+    "═","≡","≣","∷","∥",
+    "•","·","°","∙",
+    "∞","⌁","⌇"
+];
+
+let lastDetectorState = "TRUE";
+
+function makeQuantBarcode() {
+    let out = "";
+    for (let i = 0; i < BAR_LEN; i++) {
+        out += quantSymbols[Math.floor(Math.random() * quantSymbols.length)];
+    }
+
+    if (lastDetectorState === "TRUE") {
+        out = "≡≡" + out.slice(2, -2) + "≡≡";
+    } else {
+        out = "⌁⌁" + out.slice(2, -2) + "⌁⌁";
+    }
+
+    return out;
+}
+
+// ---------------- TIME ----------------
+const timeEl = document.getElementById('timeval');
+let lastTime = Date.now();
+
+function formatTime() {
+    const now = new Date();
+    return now.toLocaleString() + "." + String(now.getMilliseconds()).padStart(3,"0");
+}
+
+function checkTimeAnomaly() {
+    const now = Date.now();
+    const diff = now - lastTime;
+    if (diff < -1000) logEvent("TIME", `Clock moved BACK (${diff} ms)`);
+    if (diff > 5000) logEvent("TIME", `Clock jumped FORWARD (${diff} ms)`);
+    lastTime = now;
+}
+
+// ---------------- NAME ----------------
+const nameEl = document.getElementById('username');
+let username = prompt("Enter your name:", "Jacek");
+if (!username) username = "UNKNOWN USER";
+nameEl.textContent = username;
+logEvent("USER", `User name: ${username}`);
+
+// ---------------- IP ----------------
+const ipEl = document.getElementById('ipval');
+
+fetch("https://api.ipify.org?format=json")
+    .then(r => r.json())
+    .then(data => {
+        ipEl.textContent = data.ip;
+        logEvent("IP", `IP detected: ${data.ip}`);
+    })
+    .catch(() => {
+        ipEl.textContent = "UNAVAILABLE";
+        logEvent("IP", "IP fetch failed");
+    });
+
+// ---------------- LOCATION ----------------
+const locEl = document.getElementById('locval');
+let lastLat = null;
+let lastLon = null;
+
+setInterval(() => {
+    if (lastLat !== null && lastLon !== null) {
+        logEvent("LOC-5S", `Periodic position: ${lastLat}, ${lastLon}`);
+    }
+}, 5000);
+
+function startTracking() {
+    if (!navigator.geolocation) {
+        locEl.textContent = "NOT AVAILABLE";
+        logEvent("LOC", "Geolocation not supported");
+        return;
+    }
+
+    navigator.geolocation.watchPosition(
+        pos => {
+            const lat = pos.coords.latitude.toFixed(5);
+            const lon = pos.coords.longitude.toFixed(5);
+
+            locEl.textContent = `${lat}, ${lon}`;
+
+            if (lastLat === null) {
+                logEvent("LOC", `Initial position: ${lat}, ${lon}`);
+            } else if (lat !== lastLat || lon !== lastLon) {
+                logEvent("MOVE", `Position changed → ${lat}, ${lon}`);
+            }
+
+            lastLat = lat;
+            lastLon = lon;
+        },
+        err => {
+            locEl.textContent = "DENIED";
+            logEvent("LOC", `Location denied (${err.code})`);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+}
+
+// ---------------- THOUGHTS ----------------
+const thoughtsBox = document.getElementById('thoughts-box');
+
+const thoughtsList = [
+    "Analyzing Quant_Network node stability...",
+    "Monitoring packet flow across AA segment...",
+    "Evaluating route consistency in E = mc² mesh...",
+    "Scanning for jitter spikes in quantized paths...",
+    "Correlating movement with network handovers...",
+    "Observing burst traffic on virtual channels...",
+    "Assessing resilience of quantized topology...",
+    "Watching for latency anomalies...",
+    "Tracking identity stability across IP hops...",
+    "Maintaining continuous awareness of mesh state..."
+];
+
+function addThought() {
+    const div = document.createElement('div');
+    div.textContent = thoughtsList[Math.floor(Math.random() * thoughtsList.length)];
+    thoughtsBox.insertBefore(div, thoughtsBox.firstChild);
+}
+
+setInterval(addThought, 3500);
+
+// ---------------- LANGUAGE & MIND ALERTS ----------------
+const languageAlerts = [
+    "Potentially inappropriate expression pattern detected",
+    "Utterance flagged for tone and content review",
+    "Elevated linguistic intensity observed",
+    "Expression deviates from neutral communication baseline",
+    "Content marked for contextual interpretation"
+];
+
+const mindAlerts = [
+    "Intrusive cognitive pattern detected",
+    "Elevated internal tension signature observed",
+    "Unstable focus pattern — possible distraction spike",
+    "Heightened emotional noise in recent activity",
+    "Recurrent thought loop pattern detected"
+];
+
+function randomFrom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+setInterval(() => {
+    logEvent("LANG", randomFrom(languageAlerts));
+}, 9000);
+
+setInterval(() => {
+    logEvent("MIND", randomFrom(mindAlerts));
+}, 11000);
+
+// ---------------- TRUE / FALSE DETECTOR ----------------
+const detectorEl = document.getElementById('detector-val');
+
+function runDetector() {
+    const val = Math.random() < 0.5 ? "TRUE" : "FALSE";
+    detectorEl.textContent = val;
+    lastDetectorState = val;
+
+    if (val === "TRUE") {
+        logEvent("DETECT", "Signal integrity confirmed (TRUE)");
+    } else {
+        logEvent("DETECT", "Signal anomaly detected (FALSE)");
+    }
+}
+
+setInterval(runDetector, 5000);
+runDetector();
+
+// ---------------- TRUTH CHECK MODULE ----------------
+const truthEl = document.getElementById('truth-val');
+
+function runTruthCheck(question) {
+    const val = Math.random() < 0.5 ? "TRUE" : "FALSE";
+    truthEl.textContent = val;
+
+    if (val === "TRUE") {
+        logEvent("TRUTH", `Integrity check passed for query: "${question}"`);
+    } else {
+        logEvent("TRUTH", `Integrity anomaly for query: "${question}"`);
+    }
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        const q = prompt("Enter your question for truth-check:");
+        if (q && q.trim().length > 0) {
+            runTruthCheck(q.trim());
+        }
+    }
+});
+
+// ---------------- MAIN LOOP ----------------
+function loop() {
+    barcodeEl.textContent = makeQuantBarcode();
+    timeEl.textContent = formatTime();
+    checkTimeAnomaly();
+    setTimeout(() => requestAnimationFrame(loop), 40);
+}
+
+logEvent("SYS", "E = mc² Quant_Network — by Jacek Łaszewski initialized");
+startTracking();
+loop();
+</script>
+
+</body>
+</html>
